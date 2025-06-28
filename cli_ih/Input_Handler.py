@@ -4,37 +4,42 @@ import logging
 class HandlerClosed(Exception): ...
 class MissingParameter(Exception): ...
 
-class CustomFormatter(logging.Formatter):
-    """Custom formatter to add colors to log levels."""
-
-    LEVEL_COLORS = {
-        logging.DEBUG: "\033[34m",
-        logging.INFO: "\033[0m",
-        logging.WARNING: "\033[33m",
-        logging.ERROR: "\033[31m",
-        logging.CRITICAL: "\033[37;41m"
-    }
-
-    def format(self, record):
-        log_color = self.LEVEL_COLORS.get(record.levelno, "\033[0m")
-        log_message = super().format(record)
-        return f"{log_color}{log_message}\033[0m"
-
-def setup_logging():
-    log_format = '[%(asctime)s | %(levelname)s]: %(message)s'
-    handler = logging.StreamHandler()
-    handler.setFormatter(CustomFormatter(log_format))
-    logging.basicConfig(level=logging.INFO, handlers=[handler], datefmt='%B %d %H:%M:%S')
-
 class InputHandler:
-    #logging.basicConfig(level=logging.INFO, format='[%(asctime)s | %(levelname)s]: %(message)s', datefmt='%B %d %H:%M:%S')
-    def __init__(self, thread_mode = True, cursor = ""):
+    def __init__(self, thread_mode = True, cursor = "", logger: logging.Logger | None = None):
         self.commands = {}
         self.is_running = False
         self.thread_mode = thread_mode
         self.cursor = f"{cursor.strip()} "
         self.thread = None
+        self.logger = logger
         self.register_default_commands()
+
+    def get_logger(self):
+        return self.logger
+    
+    def __debug(self, msg: str):
+        if self.logger:
+            self.__debug(msg)
+        else:
+            print(f"[DEBUG]: {msg}")
+    
+    def __info(self, msg: str):
+        if self.logger:
+            self.__info(msg)
+        else:
+            print(f"[INFO]: {msg}")
+
+    def __warning(self, msg: str):
+        if self.logger:
+            self.__warning(msg)
+        else:
+            print(f"[WARNING]: {msg}")
+
+    def __error(self, msg: str):
+        if self.logger:
+            self.__error(msg)
+        else:
+            print(f"[ERROR]: {msg}")
 
     def register_command(self, name: str, func: Callable, description: str = ""):
         """Registers a command with its associated function."""
@@ -64,7 +69,7 @@ class InputHandler:
                 else:
                     raise ValueError(f"The command '{name}' is not callable.")
             else:
-                logging.warning(f"Command '{name}' not found.")
+                self.__warning(f"Command '{name}' not found.")
 
 
         def _thread():
@@ -81,15 +86,15 @@ class InputHandler:
                     if command_name in self.commands:
                         run_command(self.commands, command_name, args)
                     else:
-                        logging.warning(f"Unknown command: '{command_name}'")
+                        self.__warning(f"Unknown command: '{command_name}'")
                 except EOFError:
-                    logging.error("Input ended unexpectedly.")
+                    self.__error("Input ended unexpectedly.")
                     break
                 except KeyboardInterrupt:
-                    logging.error("Input interrupted.")
+                    self.__error("Input interrupted.")
                     break
                 except HandlerClosed:
-                    logging.info("Input Handler exited.")
+                    self.__info("Input Handler exited.")
                     break
             self.is_running = False
         if self.thread_mode:
@@ -106,17 +111,16 @@ class InputHandler:
             print(str_out)
 
         def debug_mode(args):
-            logger = logging.getLogger() 
+            logger = self.logger
             if logger.getEffectiveLevel() == logging.DEBUG:
                 logger.setLevel(logging.INFO)
-                logging.info("Debug mode is now off")
+                self.__info("Debug mode is now off")
             else: 
                 logger.setLevel(logging.DEBUG)
-                logging.debug("Debug mode is now on")
+                self.__debug("Debug mode is now on")
 
         def exit_thread(args):
             raise HandlerClosed
         self.register_command("help", lambda args: help(self.commands), "Displays all the available commands")
         self.register_command("debug", debug_mode, "Changes the logging level to DEBUG.")
         self.register_command("exit", exit_thread, "Exits the Input Handler irreversibly.")
-setup_logging()

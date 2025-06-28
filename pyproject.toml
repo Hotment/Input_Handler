@@ -1,6 +1,6 @@
 [project]
 name = "cli_ih"
-version = "0.5.3.3"
+version = "0.5.3.4"
 description = "A background command handler for python's command line interface."
 readme = "README.md"
 requires-python = ">= 3.8"
