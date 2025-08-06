@@ -25,7 +25,7 @@ class InputHandler:
     
     def __info(self, msg: str):
         if self.logger:
-            self.__info(msg)
+            self.logger.info(msg)
         else:
             print(f"[INFO]: {msg}")
 
@@ -54,18 +54,20 @@ class InputHandler:
         import threading, inspect
         self.is_running = True
 
-        def run_command(commands: dict, name: str, args: list):
+        def _run_command(commands: dict, name: str, args: list):
             """Executes a command from the command dictionary if it exists."""
             command = commands.get(name)
             if command:
                 func = command.get("cmd")
                 if callable(func):
-                    if str(inspect.signature(func)) == "()":
-                        raise MissingParameter(f"Command '{name}' must accept an 'args' parameter")
+                    #if str(inspect.signature(func)) == "()":
+                        #raise MissingParameter(f"Command '{name}' must accept an 'args' parameter")
                     try:
                         func(args)
+                    except TypeError as e:
+                        self.__error(f"Error calling command '{name}': {e}")
                     except Exception as e:
-                        raise e
+                        self.__error(f"An error occurred in command '{name}': {e}")
                 else:
                     raise ValueError(f"The command '{name}' is not callable.")
             else:
@@ -84,7 +86,7 @@ class InputHandler:
                     command_name = cmdargs[0]
                     args = cmdargs[1:]
                     if command_name in self.commands:
-                        run_command(self.commands, command_name, args)
+                        _run_command(self.commands, command_name, args)
                     else:
                         self.__warning(f"Unknown command: '{command_name}'")
                 except EOFError:
@@ -105,9 +107,9 @@ class InputHandler:
 
     def register_default_commands(self):
         def help(commands):
-            str_out = ""
-            for command in commands:
-                str_out += f"{command}: {commands[command]['description']}\n"
+            str_out = "Available commands:\n"
+            for command, data in self.commands.items():
+                str_out += f"  {command}: {data['description']}\n"
             print(str_out)
 
         def debug_mode(args):
