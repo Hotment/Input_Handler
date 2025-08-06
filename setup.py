@@ -5,7 +5,7 @@ with open("README.md", "r") as f:
 
 setup(
     name="cli_ih",
-    version = "0.5.3.4",
+    version = "0.5.4.0",
     packages=find_packages(),
     install_requires = [
         'logging>=0.4.9.6'
