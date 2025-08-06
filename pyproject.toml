@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "cli_ih"
 version = "0.5.4.1"
@@ -7,3 +11,9 @@ requires-python = ">= 3.8"
 authors = [
     {name = "Hotment", email = "michatchuplay@gmail.com"}
 ]
+dependencies = [
+    "logging>=0.4.9.6"
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
