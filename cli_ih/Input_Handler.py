@@ -19,7 +19,7 @@ class InputHandler:
     
     def __debug(self, msg: str):
         if self.logger:
-            self.__debug(msg)
+            self.logger.debug(msg)
         else:
             print(f"[DEBUG]: {msg}")
     
@@ -31,13 +31,13 @@ class InputHandler:
 
     def __warning(self, msg: str):
         if self.logger:
-            self.__warning(msg)
+            self.logger.warning(msg)
         else:
             print(f"[WARNING]: {msg}")
 
     def __error(self, msg: str):
         if self.logger:
-            self.__error(msg)
+            self.logger.error(msg)
         else:
             print(f"[ERROR]: {msg}")
 
