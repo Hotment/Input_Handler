@@ -40,6 +40,12 @@ class InputHandler:
             self.logger.error(msg)
         else:
             print(f"[ERROR]: {msg}")
+    
+    def __exeption(self, msg: str, e: Exception):
+        if self.logger:
+            self.logger.exception(f"{msg}: {e}")
+        else:
+            print(f"[EXEPTION]: {e}")
 
     def register_command(self, name: str, func: Callable, description: str = ""):
         """Registers a command with its associated function."""
@@ -67,7 +73,7 @@ class InputHandler:
                     except TypeError as e:
                         self.__error(f"Error calling command '{name}': {e}")
                     except Exception as e:
-                        self.__error(f"An error occurred in command '{name}': {e}")
+                        self.__exeption(f"An error occurred in command '{name}': {e}")
                 else:
                     raise ValueError(f"The command '{name}' is not callable.")
             else:
