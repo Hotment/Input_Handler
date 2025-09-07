@@ -11,7 +11,8 @@ class InputHandler:
         self.thread_mode = thread_mode
         self.cursor = f"{cursor.strip()} "
         self.thread = None
-        self.logger = logger
+        self.global_logger = logger
+        self.logger = logger.getChild("InputHandler")
         self.register_default_commands()
 
     def get_logger(self):
@@ -119,15 +120,23 @@ class InputHandler:
             print(str_out)
 
         def debug_mode(args):
-            logger = self.logger
+            logger = self.global_logger
             if not logger:
                 self.__warning("No logger defined for this InputHandler instance.")
+
             if logger.getEffectiveLevel() == logging.DEBUG:
-                logger.setLevel(logging.INFO)
-                self.__info("Debug mode is now off")
+                new_level = logging.INFO
+                message = "Debug mode is now off"
             else: 
-                logger.setLevel(logging.DEBUG)
-                self.__debug("Debug mode is now on")
+                new_level = logging.DEBUG
+                message = "Debug mode is now on"
+
+            logger.setLevel(new_level)
+
+            for handler in logger.handlers:
+                if isinstance(handler, logging.StreamHandler):
+                    handler.setLevel(new_level)
+            self.__info(message)
 
         def exit_thread(args):
             raise HandlerClosed
