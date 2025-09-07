@@ -120,6 +120,8 @@ class InputHandler:
 
         def debug_mode(args):
             logger = self.logger
+            if not logger:
+                self.__warning("No logger defined for this InputHandler instance.")
             if logger.getEffectiveLevel() == logging.DEBUG:
                 logger.setLevel(logging.INFO)
                 self.__info("Debug mode is now off")
