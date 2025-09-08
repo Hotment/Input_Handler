@@ -46,7 +46,7 @@ class InputHandler:
         if self.logger:
             self.logger.exception(f"{msg}: {e}")
         else:
-            print(f"[EXEPTION]: {e}")
+            print(f"[EXEPTION]: {msg}: {e}")
 
     def register_command(self, name: str, func: Callable, description: str = ""):
         """Registers a command with its associated function."""
@@ -73,6 +73,8 @@ class InputHandler:
                         func(args)
                     except TypeError as e:
                         self.__error(f"Error calling command '{name}': {e}")
+                    except HandlerClosed as e:
+                        raise e
                     except Exception as e:
                         self.__exeption(f"An error occurred in command '{name}'", e)
                 else:
@@ -139,7 +141,7 @@ class InputHandler:
             self.__info(message)
 
         def exit_thread(args):
-            raise HandlerClosed
+            raise HandlerClosed("Handler was closed with exit command.")
         self.register_command("help", lambda args: help(self.commands), "Displays all the available commands")
         self.register_command("debug", debug_mode, "Changes the logging level to DEBUG.")
         self.register_command("exit", exit_thread, "Exits the Input Handler irreversibly.")
