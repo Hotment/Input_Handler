@@ -74,7 +74,7 @@ class InputHandler:
                     except TypeError as e:
                         self.__error(f"Error calling command '{name}': {e}")
                     except Exception as e:
-                        self.__exeption(f"An error occurred in command '{name}': {e}")
+                        self.__exeption(f"An error occurred in command '{name}'", e)
                 else:
                     raise ValueError(f"The command '{name}' is not callable.")
             else:
@@ -122,7 +122,7 @@ class InputHandler:
         def debug_mode(args):
             logger = self.global_logger
             if not logger:
-                self.__warning("No logger defined for this InputHandler instance.")
+                return self.__warning("No logger defined for this InputHandler instance.")
 
             if logger.getEffectiveLevel() == logging.DEBUG:
                 new_level = logging.INFO
