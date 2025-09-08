@@ -5,7 +5,7 @@ class HandlerClosed(Exception): ...
 class MissingParameter(Exception): ...
 
 class InputHandler:
-    def __init__(self, thread_mode = True, cursor = "", logger: logging.Logger | None = None):
+    def __init__(self, thread_mode = True, cursor = "", *, logger: logging.Logger | None = None, register_defaults: bool = True):
         self.commands = {}
         self.is_running = False
         self.thread_mode = thread_mode
@@ -13,7 +13,11 @@ class InputHandler:
         self.thread = None
         self.global_logger = logger if logger else None
         self.logger = logger.getChild("InputHandler") if logger else None
-        self.register_default_commands()
+        self.register_defaults = register_defaults
+        if self.register_defaults:
+            self.register_default_commands()
+        else:
+            self.__warning("The default commands are disabled in the current instance.")
 
     def get_logger(self):
         return self.logger
@@ -55,6 +59,13 @@ class InputHandler:
         if ' ' in name:
             raise SyntaxError("Command name must not have spaces")
         self.commands[name] = {"cmd": func, "description": description}
+
+    def command(self, *, name: str, description: str = ""):
+        """Registers a command with its associated function as a decorator."""
+        def decorator(func):
+            self.register_command(name, func, description)
+            return func
+        return decorator
 
     def start(self):
         """Starts the input handler loop in a separate thread if thread mode is enabled."""
@@ -115,12 +126,14 @@ class InputHandler:
             _thread()
 
     def register_default_commands(self):
-        def help(commands):
+        @self.command(name="help", description="Displays all the available commands")
+        def help(args):
             str_out = "Available commands:\n"
             for command, data in self.commands.items():
                 str_out += f"  {command}: {data['description']}\n"
             print(str_out)
 
+        @self.command(name="debug", description="If a logger is present changes the logging level to DEBUG.")
         def debug_mode(args):
             logger = self.global_logger
             if not logger:
@@ -140,8 +153,9 @@ class InputHandler:
                     handler.setLevel(new_level)
             self.__info(message)
 
+        @self.command(name="exit", description="Exits the Input Handler irreversibly.")
         def exit_thread(args):
             raise HandlerClosed("Handler was closed with exit command.")
-        self.register_command("help", lambda args: help(self.commands), "Displays all the available commands")
-        self.register_command("debug", debug_mode, "Changes the logging level to DEBUG.")
-        self.register_command("exit", exit_thread, "Exits the Input Handler irreversibly.")
+        # self.register_command("help", help, "Displays all the available commands")
+        # self.register_command("debug", debug_mode, "Changes the logging level to DEBUG.")
+        # self.register_command("exit", exit_thread, "Exits the Input Handler irreversibly.")

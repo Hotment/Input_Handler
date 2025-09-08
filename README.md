@@ -9,6 +9,7 @@ A lightweight Python library for creating interactive command-line interfaces wi
 - Colored logging with support for debug mode
 - Built-in `help`, `debug`, and `exit` commands
 - Error handling for missing or invalid command arguments
+- NEW: Register commands with decorators
 
 ## Installation
 
@@ -22,13 +23,28 @@ from cli_ih import InputHandler
 def greet(args):
     print(f"Hello, {' '.join(args)}!")
 
-handler = InputHandler()
+handler = InputHandler(cursor="> ")
+# NEW
+@handler.command(name="add", description="Performs the `+` operator on the first 2 arguments.")
+def add(args):
+    print(int(args[0])+int(args[1]))
+
 handler.register_command("greet", greet, "Greets the user. Usage: greet [name]")
 handler.start()
 
 # Now type commands like:
 # > greet world
+# Hello, world!
+# > add 1 2
+# 3
 # > help
+# Available commands:
+#   help: Displays all the available commands
+#   debug: If a logger is present changes the logging level to DEBUG.
+#   exit: Exits the Input Handler irreversibly.
+#   add: Performs the `+` operator on the first 2 arguments.
+#   greet: Greets the user. Usage: greet [name]
+#
 # > debug
 # > exit
 ```
