@@ -25,7 +25,7 @@ def greet(args):
 
 handler = InputHandler(cursor="> ")
 # NEW
-@handler.command(name="add", description="Performs the `+` operator on the first 2 arguments.")
+@handler.command(name="add", description="Performs the `+` operator on the first 2 arguments.") # The name param will use the func name if its not provided
 def add(args):
     print(int(args[0])+int(args[1]))
 
@@ -51,7 +51,7 @@ handler.start()
 
 ## Additional Info
 
-- You can also import the `logging` module from `cli-ih` to use the same config as the module
+- You can provide a valid logger `logger=logger` to the `InputHandler` to enable logging (this will be removed soon)
 - You can provide the `thread_mode` param to the `InputHandler` class to set if it shoud run in a thread or no.
 (If you are using the `cli-ih` module on its own without any other background task set `thread_mode=False` to false)
 - You can also provide a `cursor` param to the `InputHandler` class to set the cli cursor (default cusor is empty)
