@@ -60,10 +60,13 @@ class InputHandler:
             raise SyntaxError("Command name must not have spaces")
         self.commands[name] = {"cmd": func, "description": description}
 
-    def command(self, *, name: str, description: str = ""):
+    def command(self, *, name: str = "", description: str = ""):
         """Registers a command with its associated function as a decorator."""
-        def decorator(func):
-            self.register_command(name, func, description)
+        def decorator(func: Callable):
+            lname = name
+            if not lname:
+                lname = func.__name__
+            self.register_command(lname, func, description)
             return func
         return decorator
 
