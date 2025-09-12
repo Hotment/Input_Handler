@@ -52,14 +52,17 @@ class InputHandler:
         else:
             print(f"[EXEPTION]: {msg}: {e}")
 
-    def register_command(self, name: str, func: Callable, description: str = ""):
-        """Registers a command with its associated function."""
-        warnings.warn("Registering commands with `register_command` is deprecated, and will be removed in the next big update.", DeprecationWarning, 2)
+    def __register_cmd(self, name: str, func: Callable, description: str = ""):
         if not description:
             description = "A command"
         if ' ' in name:
             raise SyntaxError("Command name must not have spaces")
         self.commands[name] = {"cmd": func, "description": description}
+
+    def register_command(self, name: str, func: Callable, description: str = ""):
+        """Registers a command with its associated function."""
+        warnings.warn("Registering commands with `register_command` is deprecated, and will be removed in the next big update.", DeprecationWarning, 2)
+        self.__register_cmd(name, func, description)
 
     def command(self, *, name: str = "", description: str = ""):
         """Registers a command with its associated function as a decorator."""
@@ -67,7 +70,7 @@ class InputHandler:
             lname = name
             if not lname:
                 lname = func.__name__
-            self.register_command(lname, func, description)
+            self.__register_cmd(lname, func, description)
             return func
         return decorator
 
