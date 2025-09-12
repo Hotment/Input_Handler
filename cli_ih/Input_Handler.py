@@ -1,5 +1,5 @@
 from typing import Callable
-import logging
+import logging, warnings
 
 class HandlerClosed(Exception): ...
 class MissingParameter(Exception): ...
@@ -54,6 +54,7 @@ class InputHandler:
 
     def register_command(self, name: str, func: Callable, description: str = ""):
         """Registers a command with its associated function."""
+        warnings.warn("Registering commands with `register_command` is deprecated, and will be removed in the next big update.", DeprecationWarning, 2)
         if not description:
             description = "A command"
         if ' ' in name:
