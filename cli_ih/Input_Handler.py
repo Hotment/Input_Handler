@@ -85,12 +85,14 @@ class InputHandler:
             if command:
                 func = command.get("cmd")
                 if callable(func):
-                    #if str(inspect.signature(func)) == "()":
-                        #raise MissingParameter(f"Command '{name}' must accept an 'args' parameter")
+                    try:
+                        sig = inspect.signature(func)
+                        sig.bind(*args) 
+                    except TypeError as e:
+                        self.__warning(f"Argument error for command '{name}': {e}")
+                        return
                     try:
                         func(*args)
-                    except TypeError as e:
-                        self.__error(f"Error calling command '{name}': {e}")
                     except HandlerClosed as e:
                         raise e
                     except Exception as e:
@@ -163,6 +165,3 @@ class InputHandler:
         @self.command(name="exit", description="Exits the Input Handler irreversibly.")
         def exit_thread():
             raise HandlerClosed("Handler was closed with exit command.")
-        # self.register_command("help", help, "Displays all the available commands")
-        # self.register_command("debug", debug_mode, "Changes the logging level to DEBUG.")
-        # self.register_command("exit", exit_thread, "Exits the Input Handler irreversibly.")
