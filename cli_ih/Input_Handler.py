@@ -88,7 +88,7 @@ class InputHandler:
                     #if str(inspect.signature(func)) == "()":
                         #raise MissingParameter(f"Command '{name}' must accept an 'args' parameter")
                     try:
-                        func(args)
+                        func(*args)
                     except TypeError as e:
                         self.__error(f"Error calling command '{name}': {e}")
                     except HandlerClosed as e:
@@ -134,14 +134,14 @@ class InputHandler:
 
     def register_default_commands(self):
         @self.command(name="help", description="Displays all the available commands")
-        def help(args):
+        def help():
             str_out = "Available commands:\n"
             for command, data in self.commands.items():
                 str_out += f"  {command}: {data['description']}\n"
             print(str_out)
 
         @self.command(name="debug", description="If a logger is present changes the logging level to DEBUG.")
-        def debug_mode(args):
+        def debug_mode():
             logger = self.global_logger
             if not logger:
                 return self.__warning("No logger defined for this InputHandler instance.")
@@ -161,7 +161,7 @@ class InputHandler:
             self.__info(message)
 
         @self.command(name="exit", description="Exits the Input Handler irreversibly.")
-        def exit_thread(args):
+        def exit_thread():
             raise HandlerClosed("Handler was closed with exit command.")
         # self.register_command("help", help, "Displays all the available commands")
         # self.register_command("debug", debug_mode, "Changes the logging level to DEBUG.")
