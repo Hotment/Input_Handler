@@ -52,17 +52,20 @@ class InputHandler:
         else:
             print(f"[EXEPTION]: {msg}: {e}")
 
-    def __register_cmd(self, name: str, func: Callable, description: str = ""):
+    def __register_cmd(self, name: str, func: Callable, description: str = "", legacy=False):
+        name = name.lower()
         if not description:
             description = "A command"
         if ' ' in name:
             raise SyntaxError("Command name must not have spaces")
-        self.commands[name] = {"cmd": func, "description": description}
+        if name in self.commands:
+            raise SyntaxError(f"Command '{name}' is already registered. If theese commands have a different case and they need to stay the same, downgrade the package version to 0.5.x")
+        self.commands[name] = {"cmd": func, "description": description, "legacy": legacy}
 
     def register_command(self, name: str, func: Callable, description: str = ""):
         """Registers a command with its associated function."""
         warnings.warn("Registering commands with `register_command` is deprecated, and will be removed in the next big update.", DeprecationWarning, 2)
-        self.__register_cmd(name, func, description)
+        self.__register_cmd(name, func, description, legacy=True)
 
     def command(self, *, name: str = "", description: str = ""):
         """Registers a command with its associated function as a decorator."""
@@ -84,19 +87,36 @@ class InputHandler:
             command = commands.get(name)
             if command:
                 func = command.get("cmd")
+                is_legacy = command.get("legacy", False)
                 if callable(func):
-                    try:
-                        sig = inspect.signature(func)
-                        sig.bind(*args) 
-                    except TypeError as e:
-                        self.__warning(f"Argument error for command '{name}': {e}")
-                        return
-                    try:
-                        func(*args)
-                    except HandlerClosed as e:
-                        raise e
-                    except Exception as e:
-                        self.__exeption(f"An error occurred in command '{name}'", e)
+                    if is_legacy:
+                        try:
+                            sig = inspect.signature(func)
+                            sig.bind(args)
+                        except TypeError as e:
+                            self.__warning(f"Argument error for legacy command '{name}': {e}")
+                            return
+                        
+                        try:
+                            warnings.warn("This way of running commands id Deprecated. And should be changed to the new decorator way.", DeprecationWarning, 2)
+                            func(args)
+                        except HandlerClosed as e:
+                            raise e
+                        except Exception as e:
+                            self.__exeption(f"An error occurred in legacy command '{name}'", e)
+                    else:
+                        try:
+                            sig = inspect.signature(func)
+                            sig.bind(*args) 
+                        except TypeError as e:
+                            self.__warning(f"Argument error for command '{name}': {e}")
+                            return
+                        try:
+                            func(*args)
+                        except HandlerClosed as e:
+                            raise e
+                        except Exception as e:
+                            self.__exeption(f"An error occurred in command '{name}'", e)
                 else:
                     raise ValueError(f"The command '{name}' is not callable.")
             else:
