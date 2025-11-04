@@ -130,7 +130,7 @@ class InputHandler:
                         continue
 
                     cmdargs = user_input.split(' ')
-                    command_name = cmdargs[0]
+                    command_name = cmdargs[0].lower()
                     args = cmdargs[1:]
                     if command_name in self.commands:
                         _run_command(self.commands, command_name, args)
