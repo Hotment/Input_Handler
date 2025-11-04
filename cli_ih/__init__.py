@@ -1,4 +1,4 @@
-from .Input_Handler import InputHandler
+from .client import InputHandler
 import importlib.metadata
 
 try:

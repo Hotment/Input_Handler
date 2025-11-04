@@ -1,8 +1,6 @@
 from typing import Callable
+from .exceptions import HandlerClosed
 import logging, warnings
-
-class HandlerClosed(Exception): ...
-class MissingParameter(Exception): ...
 
 class InputHandler:
     def __init__(self, thread_mode = True, cursor = "", *, logger: logging.Logger | None = None, register_defaults: bool = True):
