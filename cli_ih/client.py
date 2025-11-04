@@ -61,16 +61,14 @@ class InputHandler:
         self.commands[name] = {"cmd": func, "description": description, "legacy": legacy}
 
     def register_command(self, name: str, func: Callable, description: str = ""):
-        """Registers a command with its associated function."""
-        warnings.warn("Registering commands with `register_command` is deprecated, and will be removed in the next big update.", DeprecationWarning, 2)
+        """(DEPRECATED) Registers a command with its associated function."""
+        warnings.warn("Registering commands with `register_command` is deprecated, and should not be used.", DeprecationWarning, 2)
         self.__register_cmd(name, func, description, legacy=True)
 
     def command(self, *, name: str = "", description: str = ""):
         """Registers a command with its associated function as a decorator."""
         def decorator(func: Callable):
-            lname = name
-            if not lname:
-                lname = func.__name__
+            lname = name or func.__name__
             self.__register_cmd(lname, func, description)
             return func
         return decorator
