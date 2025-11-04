@@ -1,4 +1,5 @@
 from .client import InputHandler
+from .asyncClient import AsyncInputHandler
 import importlib.metadata
 
 try:
