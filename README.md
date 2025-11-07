@@ -49,6 +49,27 @@ handler.start()
 # > exit
 ```
 
+## New Async client
+```python
+import asyncio
+from cli_ih import AsyncInputHandler
+
+print(cli_ih.__version__)
+
+handler = AsyncInputHandler(cursor="> ")
+
+@handler.command(name="greet", description="Greets the user. Usage: greet [name]")
+async def greet(name, *args):
+    await asyncio.sleep(1)
+    print(f"Hello, {name}{" " if args else ""}{' '.join(args)}!")
+# NEW
+@handler.command(name="add", description="Performs the `+` operator on the first 2 arguments.")
+async def add(a, b):
+    print(a+b)
+
+asyncio.run(handler.start())
+```
+
 ## Additional Info
 
 - You can provide a valid logger `logger=logger` to the `InputHandler` to enable logging (this will be removed soon)

@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Coroutine
 from .exceptions import HandlerClosed
 import logging, warnings, asyncio, inspect
 
@@ -48,7 +48,7 @@ class AsyncInputHandler:
         else:
             print(f"[EXEPTION]: {msg}: {e}")
 
-    def __register_cmd(self, name: str, func: Callable, description: str = "", legacy=False):
+    def __register_cmd(self, name: str, func: Coroutine, description: str = "", legacy=False):
         name = name.lower()
         if not description:
             description = "A command"
@@ -58,14 +58,14 @@ class AsyncInputHandler:
             raise SyntaxError(f"Command '{name}' is already registered. If theese commands have a different case and they need to stay the same, downgrade the package version to 0.5.x")
         self.commands[name] = {"cmd": func, "description": description, "legacy": legacy, "is_async": inspect.iscoroutinefunction(func)}
 
-    def register_command(self, name: str, func: Callable, description: str = ""):
+    def register_command(self, name: str, func: Coroutine, description: str = ""):
         """(DEPRECATED) Registers a command with its associated function."""
         warnings.warn("Registering commands with `register_command` is deprecated, and should not be used.", DeprecationWarning, 2)
         self.__register_cmd(name, func, description, legacy=True)
 
     def command(self, *, name: str = "", description: str = ""):
         """Registers a command with its associated function as a decorator."""
-        def decorator(func: Callable):
+        def decorator(func: Coroutine):
             lname = name or func.__name__
             self.__register_cmd(lname, func, description)
             return func
@@ -74,30 +74,6 @@ class AsyncInputHandler:
     async def start(self):
         """Starts the input handler loop in a separate thread if thread mode is enabled."""
         self.is_running = True
-
-        while self.is_running:
-            try:
-                user_input = await asyncio.to_thread(input, self.cursor)
-                if not user_input:
-                    continue
-
-                cmdargs = user_input.split(' ')
-                command_name = cmdargs[0].lower()
-                args = cmdargs[1:]
-                if command_name in self.commands:
-                    await _run_command(self.commands, command_name, args)
-                else:
-                    self.__warning(f"Unknown command: '{command_name}'")
-            except EOFError:
-                self.__error("Input ended unexpectedly.")
-                break
-            except KeyboardInterrupt:
-                self.__error("Input interrupted.")
-                break
-            except HandlerClosed:
-                self.__info("Input Handler exited.")
-                break
-        self.is_running = False
 
         async def _run_command(commands: dict, name: str, args: list):
             """Executes a command from the command dictionary if it exists."""
@@ -125,16 +101,44 @@ class AsyncInputHandler:
             try:
                 if is_legacy:
                     warnings.warn("This way of running commands id Deprecated. And should be changed to the new decorator way.", DeprecationWarning, 2)
-                    await asyncio.to_thread(func, args)
-                elif is_async:
-                    await func(*args)
+                    if is_async:
+                        await func(args)
+                    else:
+                        await asyncio.to_thread(func, args)
                 else:
-                    await asyncio.to_thread(func, *args)
+                    if is_async:
+                        await func(*args)
+                    else:
+                        await asyncio.to_thread(func, *args)
 
             except HandlerClosed as e:
                 raise e
             except Exception as e:
                 self.__exeption(f"An error occurred in command '{name}'", e)
+
+        while self.is_running:
+            try:
+                user_input = await asyncio.to_thread(input, self.cursor)
+                if not user_input:
+                    continue
+
+                cmdargs = user_input.split(' ')
+                command_name = cmdargs[0].lower()
+                args = cmdargs[1:]
+                if command_name in self.commands:
+                    await _run_command(self.commands, command_name, args)
+                else:
+                    self.__warning(f"Unknown command: '{command_name}'")
+            except EOFError:
+                self.__error("Input ended unexpectedly.")
+                break
+            except KeyboardInterrupt:
+                self.__error("Input interrupted.")
+                break
+            except HandlerClosed:
+                self.__info("Input Handler exited.")
+                break
+        self.is_running = False
 
     def register_default_commands(self):
         @self.command(name="help", description="Displays all the available commands")
