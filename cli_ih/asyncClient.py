@@ -6,7 +6,7 @@ class AsyncInputHandler:
     def __init__(self, cursor = "", *, logger: logging.Logger | None = None, register_defaults: bool = True):
         self.commands = {}
         self.is_running = False
-        self.cursor = f"{cursor.strip()} "
+        self.cursor = f"{cursor.strip()} " if cursor else ""
         self.global_logger = logger if logger else None
         self.logger = logger.getChild("InputHandler") if logger else None
         self.register_defaults = register_defaults
