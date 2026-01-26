@@ -85,30 +85,37 @@ class InputHandler:
                 func = command.get("cmd")
                 is_legacy = command.get("legacy", False)
                 if callable(func):
+                    sig = inspect.signature(func)
+                    has_var_args = any(p.kind == inspect.Parameter.VAR_POSITIONAL for p in sig.parameters.values())
+
+                    if has_var_args:
+                        final_args = args
+                    else:
+                        params = [p for p in sig.parameters.values() if p.kind in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.POSITIONAL_ONLY)]
+                        final_args = args[:len(params)]
+
                     if is_legacy:
                         try:
-                            sig = inspect.signature(func)
-                            sig.bind(args)
+                            sig.bind(final_args)
                         except TypeError as e:
                             self.__warning(f"Argument error for legacy command '{name}': {e}")
                             return
                         
                         try:
                             warnings.warn("This way of running commands id Deprecated. And should be changed to the new decorator way.", DeprecationWarning, 2)
-                            func(args)
+                            func(final_args)
                         except HandlerClosed as e:
                             raise e
                         except Exception as e:
                             self.__exeption(f"An error occurred in legacy command '{name}'", e)
                     else:
                         try:
-                            sig = inspect.signature(func)
-                            sig.bind(*args) 
+                            sig.bind(*final_args) 
                         except TypeError as e:
                             self.__warning(f"Argument error for command '{name}': {e}")
                             return
                         try:
-                            func(*args)
+                            func(*final_args)
                         except HandlerClosed as e:
                             raise e
                         except Exception as e:

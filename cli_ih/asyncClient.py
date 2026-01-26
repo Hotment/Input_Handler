@@ -106,26 +106,32 @@ class AsyncInputHandler:
 
             try:
                 sig = inspect.signature(func)
-                if is_legacy:
-                    sig.bind(args)
+                has_var_args = any(p.kind == inspect.Parameter.VAR_POSITIONAL for p in sig.parameters.values())
+                if has_var_args:
+                    final_args = args
                 else:
-                    sig.bind(*args)
+                    params = [p for p in sig.parameters.values() if p.kind in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.POSITIONAL_ONLY)]
+                    final_args = args[:len(params)]
+                if is_legacy:
+                    sig.bind(final_args)
+                else:
+                    sig.bind(*final_args)
             except TypeError as e:
-                self.__warning(f"Argument error for legacy command '{name}': {e}")
+                self.__warning(f"Argument error for {"legacy " if is_legacy else ""}command '{name}': {e}")
                 return
 
             try:
                 if is_legacy:
                     warnings.warn("This way of running commands id Deprecated. And should be changed to the new decorator way.", DeprecationWarning, 2)
                     if inspect.iscoroutinefunction(func):
-                        await func(args)
+                        await func(final_args)
                     else:
-                        await asyncio.to_thread(func, args)
+                        await asyncio.to_thread(func, final_args)
                 else:
                     if inspect.iscoroutinefunction(func):
-                        await func(*args)
+                        await func(*final_args)
                     else:
-                        await asyncio.to_thread(func, *args)
+                        await asyncio.to_thread(func, *final_args)
 
             except HandlerClosed as e:
                 raise e
