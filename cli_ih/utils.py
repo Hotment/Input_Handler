@@ -1,5 +1,6 @@
 import shutil
 import sys
+import threading
 
 _HANDLER = None
 
@@ -7,15 +8,55 @@ def register_handler(handler):
     global _HANDLER
     _HANDLER = handler
 
-def safe_print(msg: str, cursor: str | None = None, input_buffer: str | None = None):
+class SafeLogger:
+    """A dummy logger that uses safe_print to output logs to the console."""
+    def __init__(self):
+        self.handlers = []
+
+    def debug(self, msg: str):
+        safe_print(f"[DEBUG]: {msg}")
+
+    def info(self, msg: str):
+        safe_print(f"[INFO]: {msg}")
+
+    def warning(self, msg: str):
+        safe_print(f"[WARNING]: {msg}")
+
+    def error(self, msg: str):
+        safe_print(f"[ERROR]: {msg}")
+        
+    def critical(self, msg: str):
+        safe_print(f"[CRITICAL]: {msg}")
+
+    def exception(self, msg: str):
+        safe_print(f"[EXCEPTION]: {msg}")
+
+    def log(self, level, msg: str):
+        safe_print(f"[LOG {level}]: {msg}")
+    
+    def getChild(self, name):
+        return self
+    
+    def setLevel(self, level):
+        pass
+
+    def getEffectiveLevel(self):
+        return 0
+
+
+def safe_print(msg: object, cursor: str | None = None, input_buffer: str | None = None):
     """
     Prints a message safely while preserving the current input buffer and cursor.
     This ensures logs appear above the input line appropriately.
     """
+    try:
+        msg = str(msg)
+    except:
+        msg = "<Unprintable Object>"
+
     if cursor is None and input_buffer is None and _HANDLER is not None:
-        lock = None
+        lock: threading.Lock | None = None
         try:
-            # Try to acquire lock if available to prevent race conditions
             lock = getattr(_HANDLER, "print_lock", None)
             if lock:
                 lock.acquire()
@@ -33,8 +74,7 @@ def safe_print(msg: str, cursor: str | None = None, input_buffer: str | None = N
             if lock:
                 lock.release()
     else:
-        # Fallback or explicit arguments
-        _do_safe_print(msg, cursor or "", input_buffer or "")
+        _do_safe_print(msg, str(cursor or ""), str(input_buffer or ""))
 
 def _do_safe_print(msg: str, cursor: str, input_buffer: str):
     try:
@@ -42,10 +82,7 @@ def _do_safe_print(msg: str, cursor: str, input_buffer: str):
     except:
         columns = 80
             
-    # Clear line
     sys.stdout.write('\r' + ' ' * (columns - 1) + '\r')
-    # Print message
     sys.stdout.write(f"{msg}\n")
-    # Reprint cursor and buffer
     sys.stdout.write(f"{cursor}{input_buffer}")
     sys.stdout.flush()

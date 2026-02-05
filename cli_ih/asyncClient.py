@@ -1,6 +1,6 @@
-from typing import Coroutine, Callable, Any
+from typing import Callable, Any
 from .exceptions import HandlerClosed
-from .utils import safe_print as print, register_handler
+from .utils import safe_print as print, register_handler, SafeLogger
 import logging, warnings, asyncio, inspect, threading, sys, shutil, msvcrt
 
 class AsyncInputHandler:
@@ -10,8 +10,8 @@ class AsyncInputHandler:
         self.is_running = False
         self.thread_mode = thread_mode
         self.cursor = f"{cursor.strip()} " if cursor else ""
-        self.global_logger = logger if logger else None
-        self.logger = logger.getChild("InputHandler") if logger else None
+        self.global_logger = logger if logger else SafeLogger()
+        self.logger = logger.getChild("InputHandler") if logger else self.global_logger
         self.register_defaults = register_defaults
         self.print_lock = threading.Lock()
         self.input_buffer = ""
@@ -28,34 +28,19 @@ class AsyncInputHandler:
         return self.logger
     
     def __debug(self, msg: str):
-        if self.logger:
-            self.logger.debug(msg)
-        else:
-            print(f"[DEBUG]: {msg}")
+        self.logger.debug(msg)
     
     def __info(self, msg: str):
-        if self.logger:
-            self.logger.info(msg)
-        else:
-            print(f"[INFO]: {msg}")
+        self.logger.info(msg)
 
     def __warning(self, msg: str):
-        if self.logger:
-            self.logger.warning(msg)
-        else:
-            print(f"[WARNING]: {msg}")
+        self.logger.warning(msg)
 
     def __error(self, msg: str):
-        if self.logger:
-            self.logger.error(msg)
-        else:
-            print(f"[ERROR]: {msg}")
+        self.logger.error(msg)
     
     def __exeption(self, msg: str, e: Exception):
-        if self.logger:
-            self.logger.exception(f"{msg}: {e}")
-        else:
-            print(f"[EXEPTION]: {msg}: {e}")
+        self.logger.exception(f"{msg}: {e}")
 
     def __register_cmd(self, name: str, func: Callable[..., Any], description: str = "", legacy=False):
         name = name.lower()
@@ -98,7 +83,6 @@ class AsyncInputHandler:
         input_queue = asyncio.Queue()
 
         def _input_worker():
-            # Initial prompt
             with self.print_lock:
                 sys.stdout.write(self.cursor)
                 sys.stdout.flush()
@@ -108,10 +92,10 @@ class AsyncInputHandler:
                     if msvcrt.kbhit():
                         char = msvcrt.getwch()
                         
-                        if char == '\xe0' or char == '\x00': # Special keys (Arrows, etc)
+                        if char == '\xe0' or char == '\x00':
                             try:
                                 scancode = msvcrt.getwch()
-                                if scancode == 'H': # Up Arrow
+                                if scancode == 'H':
                                     if self.history_index > 0:
                                         self.history_index -= 1
                                         self.input_buffer = self.history[self.history_index]
@@ -120,7 +104,7 @@ class AsyncInputHandler:
                                             sys.stdout.write(self.cursor + self.input_buffer)
                                             sys.stdout.flush()
                                     
-                                elif scancode == 'P': # Down Arrow
+                                elif scancode == 'P':
                                     if self.history_index < len(self.history):
                                         self.history_index += 1
                                         
@@ -136,7 +120,7 @@ class AsyncInputHandler:
                             except Exception:
                                 pass
 
-                        elif char == '\r': # Enter
+                        elif char == '\r':
                             with self.print_lock:
                                 sys.stdout.write('\n')
                                 sys.stdout.flush()
@@ -150,29 +134,24 @@ class AsyncInputHandler:
                             
                             loop.call_soon_threadsafe(input_queue.put_nowait, text)
                                 
-                        elif char == '\x08': # Backspace
+                        elif char == '\x08':
                             if len(self.input_buffer) > 0:
                                 self.input_buffer = self.input_buffer[:-1]
                                 with self.print_lock:
                                     sys.stdout.write('\b \b')
                                     sys.stdout.flush()
                         
-                        elif char == '\x03': # Ctrl+C
+                        elif char == '\x03':
                             loop.call_soon_threadsafe(input_queue.put_nowait, KeyboardInterrupt)
                             break
                         
                         else:
-                            # Verify printable
                             if char.isprintable():
                                 self.input_buffer += char
                                 with self.print_lock:
                                     sys.stdout.write(char)
                                     sys.stdout.flush()
                     else:
-                        pass
-                        # Small sleep to prevent high CPU usage, 
-                        # but we are in a dedicated thread so it's fine-ish, 
-                        # actually explicit sleep is good.
                         import time
                         time.sleep(0.01)
 
@@ -182,7 +161,7 @@ class AsyncInputHandler:
         thread = threading.Thread(target=_input_worker, daemon=True)
         thread.start()
 
-        async def _run_command(commands: dict, name: str, args: list):
+        async def _run_command(commands: dict[str, dict[str, Any]], name: str, args: list[str]):
             """Executes a command from the command dictionary if it exists."""
             command = commands.get(name)
             if not command:

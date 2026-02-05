@@ -1,7 +1,7 @@
-from typing import Callable
+from typing import Callable, Any
 from .exceptions import HandlerClosed
-from .utils import safe_print as print, register_handler
-import logging, warnings, sys, shutil, threading, msvcrt
+from .utils import safe_print as print, register_handler, SafeLogger
+import logging, sys, threading, warnings, inspect, shutil, msvcrt
 
 class InputHandler:
     def __init__(self, thread_mode = True, cursor = "", *, logger: logging.Logger | None = None, register_defaults: bool = True):
@@ -11,8 +11,8 @@ class InputHandler:
         self.thread_mode = thread_mode
         self.cursor = f"{cursor.strip()} " if cursor else ""
         self.thread = None
-        self.global_logger = logger if logger else None
-        self.logger = logger.getChild("InputHandler") if logger else None
+        self.global_logger = logger if logger else SafeLogger()
+        self.logger = logger.getChild("InputHandler") if logger else self.global_logger
         self.register_defaults = register_defaults
         self.print_lock = threading.Lock()
         self.input_buffer = ""
@@ -29,36 +29,21 @@ class InputHandler:
         return self.logger
     
     def __debug(self, msg: str):
-        if self.logger:
-            self.logger.debug(msg)
-        else:
-            print(f"[DEBUG]: {msg}")
+        self.logger.debug(msg)
     
     def __info(self, msg: str):
-        if self.logger:
-            self.logger.info(msg)
-        else:
-            print(f"[INFO]: {msg}")
+        self.logger.info(msg)
 
     def __warning(self, msg: str):
-        if self.logger:
-            self.logger.warning(msg)
-        else:
-            print(f"[WARNING]: {msg}")
+        self.logger.warning(msg)
 
     def __error(self, msg: str):
-        if self.logger:
-            self.logger.error(msg)
-        else:
-            print(f"[ERROR]: {msg}")
+        self.logger.error(msg)
     
     def __exeption(self, msg: str, e: Exception):
-        if self.logger:
-            self.logger.exception(f"{msg}: {e}")
-        else:
-            print(f"[EXEPTION]: {msg}: {e}")
+        self.logger.exception(f"{msg}: {e}")
 
-    def __register_cmd(self, name: str, func: Callable, description: str = "", legacy=False):
+    def __register_cmd(self, name: str, func: Callable[..., Any], description: str = "", legacy=False):
         name = name.lower()
         if not description:
             description = "A command"
@@ -68,14 +53,14 @@ class InputHandler:
             raise SyntaxError(f"Command '{name}' is already registered. If theese commands have a different case and they need to stay the same, downgrade the package version to 0.5.x")
         self.commands[name] = {"cmd": func, "description": description, "legacy": legacy}
 
-    def register_command(self, name: str, func: Callable, description: str = ""):
+    def register_command(self, name: str, func: Callable[..., Any], description: str = ""):
         """(DEPRECATED) Registers a command with its associated function."""
         warnings.warn("Registering commands with `register_command` is deprecated, and should not be used.", DeprecationWarning, 2)
         self.__register_cmd(name, func, description, legacy=True)
 
     def command(self, *, name: str = "", description: str = ""):
         """Registers a command with its associated function as a decorator."""
-        def decorator(func: Callable):
+        def decorator(func: Callable[..., Any]):
             lname = name or func.__name__
             self.__register_cmd(lname, func, description)
             return func
@@ -138,7 +123,6 @@ class InputHandler:
             """Continuously listens for user input and processes commands."""
             while self.is_running:
                 try:
-                    # Initial prompt
                     with self.print_lock:
                         sys.stdout.write(self.cursor)
                         sys.stdout.flush()
@@ -147,29 +131,19 @@ class InputHandler:
                         if msvcrt.kbhit():
                             char = msvcrt.getwch()
                             
-                            if char == '\xe0' or char == '\x00': # Special keys (Arrows, etc)
+                            if char == '\xe0' or char == '\x00':
                                 try:
                                     scancode = msvcrt.getwch()
-                                    if scancode == 'H': # Up Arrow
+                                    if scancode == 'H':
                                         if self.history_index > 0:
                                             self.history_index -= 1
                                             self.input_buffer = self.history[self.history_index]
                                             with self.print_lock:
-                                                # Clear current line visually
-                                                # We don't have columns info here easily, but safe_print logic uses clearing.
-                                                # Let's try to just use \r and spaces? No, let's just use \r and overwrite.
-                                                # To properly clear, we need to know the length of what was there.
-                                                # A reuse of _safe_print logic might be good but avoiding circularity.
-                                                # Simple clear strategy: \r, print many spaces, \r, print prompt + buffer
-                                                # Or better: \r + prompt + buffer + spaces to clear rest?
-                                                
-                                                # We'll use a crude clear for now or simple overwrite if shorter?
-                                                # Best to clear the line.
                                                 sys.stdout.write('\r' + ' ' * (shutil.get_terminal_size().columns - 1) + '\r')
                                                 sys.stdout.write(self.cursor + self.input_buffer)
                                                 sys.stdout.flush()
                                         
-                                    elif scancode == 'P': # Down Arrow
+                                    elif scancode == 'P':
                                         if self.history_index < len(self.history):
                                             self.history_index += 1
                                             
@@ -185,7 +159,7 @@ class InputHandler:
                                 except Exception:
                                     pass
 
-                            elif char == '\r': # Enter
+                            elif char == '\r':
                                 with self.print_lock:
                                     sys.stdout.write('\n')
                                     sys.stdout.flush()
@@ -193,9 +167,6 @@ class InputHandler:
                                 self.input_buffer = ""
                                 
                                 if text:
-                                    # Add to history if unique or last one different? 
-                                    # Usually standard behavior: always add, or add if different from last.
-                                    # Let's add if not empty.
                                     if not self.history or self.history[-1] != text:
                                         self.history.append(text)
                                     self.history_index = len(self.history)
@@ -210,23 +181,21 @@ class InputHandler:
                                         self.__warning(f"Unknown command: '{command_name}'")
                                     self.processing_command = False
                                 
-                                # Break inner loop to reprompt
                                 break
                                     
-                            elif char == '\x08': # Backspace
+                            elif char == '\x08':
                                 if len(self.input_buffer) > 0:
                                     self.input_buffer = self.input_buffer[:-1]
                                     with self.print_lock:
                                         sys.stdout.write('\b \b')
                                         sys.stdout.flush()
                             
-                            elif char == '\x03': # Ctrl+C
+                            elif char == '\x03':
                                 self.__error("Input interrupted.")
                                 self.is_running = False
                                 return
                             
                             else:
-                                # Verify printable
                                 if char.isprintable():
                                     self.input_buffer += char
                                     with self.print_lock:
