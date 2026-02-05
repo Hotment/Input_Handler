@@ -16,6 +16,8 @@ class AsyncInputHandler:
         self.print_lock = threading.Lock()
         self.input_buffer = ""
         self.processing_command = False
+        self.history = []
+        self.history_index = 0
         
         if self.register_defaults:
             self.register_default_commands()
@@ -106,12 +108,46 @@ class AsyncInputHandler:
                     if msvcrt.kbhit():
                         char = msvcrt.getwch()
                         
-                        if char == '\r': # Enter
+                        if char == '\xe0' or char == '\x00': # Special keys (Arrows, etc)
+                            try:
+                                scancode = msvcrt.getwch()
+                                if scancode == 'H': # Up Arrow
+                                    if self.history_index > 0:
+                                        self.history_index -= 1
+                                        self.input_buffer = self.history[self.history_index]
+                                        with self.print_lock:
+                                            sys.stdout.write('\r' + ' ' * (shutil.get_terminal_size().columns - 1) + '\r')
+                                            sys.stdout.write(self.cursor + self.input_buffer)
+                                            sys.stdout.flush()
+                                    
+                                elif scancode == 'P': # Down Arrow
+                                    if self.history_index < len(self.history):
+                                        self.history_index += 1
+                                        
+                                    if self.history_index == len(self.history):
+                                        self.input_buffer = ""
+                                    else:
+                                        self.input_buffer = self.history[self.history_index]
+                                        
+                                    with self.print_lock:
+                                        sys.stdout.write('\r' + ' ' * (shutil.get_terminal_size().columns - 1) + '\r')
+                                        sys.stdout.write(self.cursor + self.input_buffer)
+                                        sys.stdout.flush()
+                            except Exception:
+                                pass
+
+                        elif char == '\r': # Enter
                             with self.print_lock:
                                 sys.stdout.write('\n')
                                 sys.stdout.flush()
                             text = self.input_buffer
                             self.input_buffer = ""
+                            
+                            if text:
+                                if not self.history or self.history[-1] != text:
+                                    self.history.append(text)
+                                self.history_index = len(self.history)
+                            
                             loop.call_soon_threadsafe(input_queue.put_nowait, text)
                                 
                         elif char == '\x08': # Backspace

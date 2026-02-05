@@ -17,6 +17,8 @@ class InputHandler:
         self.print_lock = threading.Lock()
         self.input_buffer = ""
         self.processing_command = False
+        self.history = []
+        self.history_index = 0
         
         if self.register_defaults:
             self.register_default_commands()
@@ -145,7 +147,45 @@ class InputHandler:
                         if msvcrt.kbhit():
                             char = msvcrt.getwch()
                             
-                            if char == '\r': # Enter
+                            if char == '\xe0' or char == '\x00': # Special keys (Arrows, etc)
+                                try:
+                                    scancode = msvcrt.getwch()
+                                    if scancode == 'H': # Up Arrow
+                                        if self.history_index > 0:
+                                            self.history_index -= 1
+                                            self.input_buffer = self.history[self.history_index]
+                                            with self.print_lock:
+                                                # Clear current line visually
+                                                # We don't have columns info here easily, but safe_print logic uses clearing.
+                                                # Let's try to just use \r and spaces? No, let's just use \r and overwrite.
+                                                # To properly clear, we need to know the length of what was there.
+                                                # A reuse of _safe_print logic might be good but avoiding circularity.
+                                                # Simple clear strategy: \r, print many spaces, \r, print prompt + buffer
+                                                # Or better: \r + prompt + buffer + spaces to clear rest?
+                                                
+                                                # We'll use a crude clear for now or simple overwrite if shorter?
+                                                # Best to clear the line.
+                                                sys.stdout.write('\r' + ' ' * (shutil.get_terminal_size().columns - 1) + '\r')
+                                                sys.stdout.write(self.cursor + self.input_buffer)
+                                                sys.stdout.flush()
+                                        
+                                    elif scancode == 'P': # Down Arrow
+                                        if self.history_index < len(self.history):
+                                            self.history_index += 1
+                                            
+                                        if self.history_index == len(self.history):
+                                            self.input_buffer = ""
+                                        else:
+                                            self.input_buffer = self.history[self.history_index]
+                                            
+                                        with self.print_lock:
+                                            sys.stdout.write('\r' + ' ' * (shutil.get_terminal_size().columns - 1) + '\r')
+                                            sys.stdout.write(self.cursor + self.input_buffer)
+                                            sys.stdout.flush()
+                                except Exception:
+                                    pass
+
+                            elif char == '\r': # Enter
                                 with self.print_lock:
                                     sys.stdout.write('\n')
                                     sys.stdout.flush()
@@ -153,6 +193,13 @@ class InputHandler:
                                 self.input_buffer = ""
                                 
                                 if text:
+                                    # Add to history if unique or last one different? 
+                                    # Usually standard behavior: always add, or add if different from last.
+                                    # Let's add if not empty.
+                                    if not self.history or self.history[-1] != text:
+                                        self.history.append(text)
+                                    self.history_index = len(self.history)
+                                    
                                     self.processing_command = True
                                     cmdargs = text.split(' ')
                                     command_name = cmdargs[0].lower()

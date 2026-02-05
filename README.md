@@ -1,78 +1,92 @@
 # InputHandler Library
 
-A lightweight Python library for creating interactive command-line interfaces with custom command registration and input handling. It supports threaded input processing and includes enhanced logging with color-coded output.
+A lightweight Python library for creating interactive command-line interfaces with custom command registration, input handling, and clean log output. It supports synchronous and asynchronous modes, threaded input processing, and enhanced logging.
 
 ## Features
 
-- Command registration system with descriptions
-- Threaded or non-threaded input handling
-- Colored logging with support for debug mode
-- Built-in `help`, `debug`, and `exit` commands
-- Error handling for missing or invalid command arguments
-- NEW: Register commands with decorators
+- **Command Registration**: Register commands with decorators and descriptions.
+- **Threaded Input**: Non-blocking input handling by default.
+- **Safe Printing**: Logs appear above the input line, preserving your typed text and cursor position.
+- **Command History**: Navigate recent commands with Up/Down arrow keys.
+- **Sync & Async**: Support for both synchronous and asynchronous (asyncio) applications.
+- **Colored Logging**: Built-in support for colored log messages.
 
 ## Installation
 
 `pip install cli_ih`
 
-## Quick Start
+## Quick Start (Synchronous)
 
 ```python
-from cli_ih import InputHandler
-
-def greet(args):
-    print(f"Hello, {' '.join(args)}!")
+from cli_ih import InputHandler, safe_print
 
 handler = InputHandler(cursor="> ")
-# NEW
-@handler.command(name="add", description="Performs the `+` operator on the first 2 arguments.") # The name param will use the func name if its not provided
-def add(args):
-    print(int(args[0])+int(args[1]))
 
-handler.register_command("greet", greet, "Greets the user. Usage: greet [name]")
+# Use safe_print instead of print to keep the input line clean!
+@handler.command(name="greet", description="Greets the user.")
+def greet(name):
+    safe_print(f"Hello, {name}!")
+
+@handler.command(name="add", description="Adds two numbers.")
+def add(a, b):
+    safe_print(int(a) + int(b))
+
 handler.start()
 
-# Now type commands like:
-# > greet world
-# Hello, world!
-# > add 1 2
-# 3
-# > help
-# Available commands:
-#   help: Displays all the available commands
-#   debug: If a logger is present changes the logging level to DEBUG.
-#   exit: Exits the Input Handler irreversibly.
-#   add: Performs the `+` operator on the first 2 arguments.
-#   greet: Greets the user. Usage: greet [name]
-#
-# > debug
-# > exit
+# Using safe_print allows you to print logs in the background 
+# without messing up the user's current input line.
 ```
 
-## New Async client
+## Async Client Example
+
+The `AsyncInputHandler` integrates with `asyncio`. The `start()` method is non-blocking when `thread_mode=True` (default).
+
 ```python
 import asyncio
-from cli_ih import AsyncInputHandler
+from cli_ih import AsyncInputHandler, safe_print
 
-print(cli_ih.__version__)
+handler = AsyncInputHandler(cursor="Async> ")
 
-handler = AsyncInputHandler(cursor="> ")
-
-@handler.command(name="greet", description="Greets the user. Usage: greet [name]")
-async def greet(name, *args):
+@handler.command(name="greet", description="Greets the user asynchronously.")
+async def greet(name):
     await asyncio.sleep(1)
-    print(f"Hello, {name}{" " if args else ""}{' '.join(args)}!")
-# NEW
-@handler.command(name="add", description="Performs the `+` operator on the first 2 arguments.")
-async def add(a, b):
-    print(a+b)
+    safe_print(f"Hello, {name}")
 
-asyncio.run(handler.start())
+@handler.command(name="add", description="Adds two numbers.")
+async def add(a, b):
+    safe_print(int(a) + int(b))
+
+# Start the handler (runs in a separate thread by default)
+handler.start()
+
+# Keep the main thread alive or run your main event loop
+async def main():
+    while handler.is_running:
+        await asyncio.sleep(1)
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
-## Additional Info
+## Key Considerations
 
-- You can provide a valid logger `logger=logger` to the `InputHandler` to enable logging (this will be removed soon)
-- You can provide the `thread_mode` param to the `InputHandler` class to set if it shoud run in a thread or no.
-(If you are using the `cli-ih` module on its own without any other background task set `thread_mode=False` to false)
-- You can also provide a `cursor` param to the `InputHandler` class to set the cli cursor (default cusor is empty)
+### Safe Printing
+Always use `from cli_ih import safe_print` for outputting text to the console. This utility automatically detects the active input handler and ensures that your log message is printed *above* the current input line, preserving the user's cursor and any text they are currently typing.
+
+```python
+from cli_ih import safe_print
+
+# Good
+safe_print("Log message")
+
+# Avoid (might disrupt input line)
+print("Log message")
+```
+
+### Thread Mode
+Both `InputHandler` and `AsyncInputHandler` accept a `thread_mode` parameter (default `True`).
+- `thread_mode=True`: The input loop runs in a separate thread. `start()` returns immediately.
+- `thread_mode=False`: The input loop runs in the current thread. `start()` blocks until exit.
+
+### Command History
+Use the **Up** and **Down** arrow keys to cycle through your previously entered commands, just like in a standard terminal.
