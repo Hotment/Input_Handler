@@ -1,9 +1,11 @@
 from typing import Callable
 from .exceptions import HandlerClosed
-import logging, warnings
+from .utils import safe_print as print, register_handler
+import logging, warnings, sys, shutil, threading, msvcrt
 
 class InputHandler:
     def __init__(self, thread_mode = True, cursor = "", *, logger: logging.Logger | None = None, register_defaults: bool = True):
+        register_handler(self)
         self.commands = {}
         self.is_running = False
         self.thread_mode = thread_mode
@@ -12,6 +14,10 @@ class InputHandler:
         self.global_logger = logger if logger else None
         self.logger = logger.getChild("InputHandler") if logger else None
         self.register_defaults = register_defaults
+        self.print_lock = threading.Lock()
+        self.input_buffer = ""
+        self.processing_command = False
+        
         if self.register_defaults:
             self.register_default_commands()
         else:
@@ -130,25 +136,64 @@ class InputHandler:
             """Continuously listens for user input and processes commands."""
             while self.is_running:
                 try:
-                    user_input = input(self.cursor).strip()
-                    if not user_input:
-                        continue
+                    # Initial prompt
+                    with self.print_lock:
+                        sys.stdout.write(self.cursor)
+                        sys.stdout.flush()
+                        
+                    while self.is_running:
+                        if msvcrt.kbhit():
+                            char = msvcrt.getwch()
+                            
+                            if char == '\r': # Enter
+                                with self.print_lock:
+                                    sys.stdout.write('\n')
+                                    sys.stdout.flush()
+                                text = self.input_buffer
+                                self.input_buffer = ""
+                                
+                                if text:
+                                    self.processing_command = True
+                                    cmdargs = text.split(' ')
+                                    command_name = cmdargs[0].lower()
+                                    args = cmdargs[1:]
+                                    if command_name in self.commands:
+                                        _run_command(self.commands, command_name, args)
+                                    else:
+                                        self.__warning(f"Unknown command: '{command_name}'")
+                                    self.processing_command = False
+                                
+                                # Break inner loop to reprompt
+                                break
+                                    
+                            elif char == '\x08': # Backspace
+                                if len(self.input_buffer) > 0:
+                                    self.input_buffer = self.input_buffer[:-1]
+                                    with self.print_lock:
+                                        sys.stdout.write('\b \b')
+                                        sys.stdout.flush()
+                            
+                            elif char == '\x03': # Ctrl+C
+                                self.__error("Input interrupted.")
+                                self.is_running = False
+                                return
+                            
+                            else:
+                                # Verify printable
+                                if char.isprintable():
+                                    self.input_buffer += char
+                                    with self.print_lock:
+                                        sys.stdout.write(char)
+                                        sys.stdout.flush()
+                        else:
+                            import time
+                            time.sleep(0.01)
 
-                    cmdargs = user_input.split(' ')
-                    command_name = cmdargs[0].lower()
-                    args = cmdargs[1:]
-                    if command_name in self.commands:
-                        _run_command(self.commands, command_name, args)
-                    else:
-                        self.__warning(f"Unknown command: '{command_name}'")
-                except EOFError:
-                    self.__error("Input ended unexpectedly.")
-                    break
-                except KeyboardInterrupt:
-                    self.__error("Input interrupted.")
-                    break
                 except HandlerClosed:
                     self.__info("Input Handler exited.")
+                    break
+                except Exception as e:
+                    self.__exeption("Input loop error", e)
                     break
             self.is_running = False
         if self.thread_mode:

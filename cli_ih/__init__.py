@@ -1,5 +1,6 @@
 from .client import InputHandler
 from .asyncClient import AsyncInputHandler
+from .utils import safe_print
 import importlib.metadata
 
 try:
