@@ -26,15 +26,19 @@ else:
             self.old_settings = None
 
         def __enter__(self):
+            if not sys.stdin.isatty():
+                return self
+
             self.old_settings = termios.tcgetattr(self.fd)
             new_settings = termios.tcgetattr(self.fd)
             new_settings[3] = new_settings[3] & ~termios.ICANON & ~termios.ECHO & ~termios.ISIG
-            termios.tcsetattr(self.fd, termios.TCSADRAIN, new_settings)
+            termios.tcsetattr(self.fd, termios.TCSANOW, new_settings)
             return self
 
         def __exit__(self, exc_type, exc_value, traceback):
             if self.old_settings:
-                termios.tcsetattr(self.fd, termios.TCSADRAIN, self.old_settings)
+                termios.tcsetattr(self.fd, termios.TCSANOW, self.old_settings)
+
 
     class UnixInput:
         def __init__(self):
