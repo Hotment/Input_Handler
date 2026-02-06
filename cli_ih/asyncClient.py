@@ -88,77 +88,78 @@ class AsyncInputHandler:
                 sys.stdout.write(self.cursor)
                 sys.stdout.flush()
 
-            while self.is_running:
-                try:
-                    if input_lib.kbhit():
-                        char = input_lib.getwch()
-                        
-                        if char == '\xe0' or char == '\x00':
-                            try:
-                                scancode = input_lib.getwch()
+            with input_lib.InputContext():
+                while self.is_running:
+                    try:
+                        if input_lib.kbhit():
+                            char = input_lib.getwch()
+                            
+                            if char == '\xe0' or char == '\x00':
+                                try:
+                                    scancode = input_lib.getwch()
 
-                                if scancode == 'H':
-                                    if self.history_index > 0:
-                                        self.history_index -= 1
-                                        self.input_buffer = self.history[self.history_index]
+                                    if scancode == 'H':
+                                        if self.history_index > 0:
+                                            self.history_index -= 1
+                                            self.input_buffer = self.history[self.history_index]
+                                            with self.print_lock:
+                                                sys.stdout.write('\r' + ' ' * (shutil.get_terminal_size().columns - 1) + '\r')
+                                                sys.stdout.write(self.cursor + self.input_buffer)
+                                                sys.stdout.flush()
+                                        
+                                    elif scancode == 'P':
+                                        if self.history_index < len(self.history):
+                                            self.history_index += 1
+                                            
+                                        if self.history_index == len(self.history):
+                                            self.input_buffer = ""
+                                        else:
+                                            self.input_buffer = self.history[self.history_index]
+                                            
                                         with self.print_lock:
                                             sys.stdout.write('\r' + ' ' * (shutil.get_terminal_size().columns - 1) + '\r')
                                             sys.stdout.write(self.cursor + self.input_buffer)
                                             sys.stdout.flush()
-                                    
-                                elif scancode == 'P':
-                                    if self.history_index < len(self.history):
-                                        self.history_index += 1
-                                        
-                                    if self.history_index == len(self.history):
-                                        self.input_buffer = ""
-                                    else:
-                                        self.input_buffer = self.history[self.history_index]
-                                        
-                                    with self.print_lock:
-                                        sys.stdout.write('\r' + ' ' * (shutil.get_terminal_size().columns - 1) + '\r')
-                                        sys.stdout.write(self.cursor + self.input_buffer)
-                                        sys.stdout.flush()
-                            except Exception:
-                                pass
+                                except Exception:
+                                    pass
 
-                        elif char == '\r':
-                            with self.print_lock:
-                                sys.stdout.write('\n')
-                                sys.stdout.flush()
-                            text = self.input_buffer
-                            self.input_buffer = ""
-                            
-                            if text:
-                                if not self.history or self.history[-1] != text:
-                                    self.history.append(text)
-                                self.history_index = len(self.history)
-                            
-                            loop.call_soon_threadsafe(input_queue.put_nowait, text)
+                            elif char == '\r':
+                                with self.print_lock:
+                                    sys.stdout.write('\n')
+                                    sys.stdout.flush()
+                                text = self.input_buffer
+                                self.input_buffer = ""
                                 
-                        elif char == '\x08':
-                            if len(self.input_buffer) > 0:
-                                self.input_buffer = self.input_buffer[:-1]
-                                with self.print_lock:
-                                    sys.stdout.write('\b \b')
-                                    sys.stdout.flush()
-                        
-                        elif char == '\x03':
-                            loop.call_soon_threadsafe(input_queue.put_nowait, KeyboardInterrupt)
-                            break
-                        
+                                if text:
+                                    if not self.history or self.history[-1] != text:
+                                        self.history.append(text)
+                                    self.history_index = len(self.history)
+                                
+                                loop.call_soon_threadsafe(input_queue.put_nowait, text)
+                                    
+                            elif char == '\x08':
+                                if len(self.input_buffer) > 0:
+                                    self.input_buffer = self.input_buffer[:-1]
+                                    with self.print_lock:
+                                        sys.stdout.write('\b \b')
+                                        sys.stdout.flush()
+                            
+                            elif char == '\x03':
+                                loop.call_soon_threadsafe(input_queue.put_nowait, KeyboardInterrupt)
+                                break
+                            
+                            else:
+                                if char.isprintable():
+                                    self.input_buffer += char
+                                    with self.print_lock:
+                                        sys.stdout.write(char)
+                                        sys.stdout.flush()
                         else:
-                            if char.isprintable():
-                                self.input_buffer += char
-                                with self.print_lock:
-                                    sys.stdout.write(char)
-                                    sys.stdout.flush()
-                    else:
-                        import time
-                        time.sleep(0.01)
+                            import time
+                            time.sleep(0.01)
 
-                except Exception:
-                    break
+                    except Exception:
+                        break
         
         thread = threading.Thread(target=_input_worker, daemon=True)
         thread.start()
@@ -189,7 +190,9 @@ class AsyncInputHandler:
                 else:
                     sig.bind(*final_args)
             except TypeError as e:
-                self.__warning(f"Argument error for {"legacy " if is_legacy else ""}command '{name}': {e}")
+                cmd_type = "legacy " if is_legacy else ""
+                self.__warning(f"Argument error for {cmd_type}command '{name}': {e}")
+
                 return
 
             try:

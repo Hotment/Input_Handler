@@ -3,11 +3,38 @@ import sys
 if sys.platform == 'win32':
     import msvcrt
 
-    kbhit = msvcrt.kbhit
-    getwch = msvcrt.getwch
+    class InputContext:  # pyright: ignore[reportRedeclaration]
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            pass
+
+    def kbhit():
+        return msvcrt.kbhit()
+
+    def getwch():
+        return msvcrt.getwch()
+
 
 else:
     import select, tty, termios
+
+    class InputContext:
+        def __init__(self):
+            self.fd = sys.stdin.fileno()
+            self.old_settings = None
+
+        def __enter__(self):
+            self.old_settings = termios.tcgetattr(self.fd)
+            new_settings = termios.tcgetattr(self.fd)
+            new_settings[3] = new_settings[3] & ~termios.ICANON & ~termios.ECHO & ~termios.ISIG
+            termios.tcsetattr(self.fd, termios.TCSADRAIN, new_settings)
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            if self.old_settings:
+                termios.tcsetattr(self.fd, termios.TCSADRAIN, self.old_settings)
 
     class UnixInput:
         def __init__(self):
@@ -22,33 +49,16 @@ else:
         def getwch(self) -> str:
             if self.buffer:
                 return self.buffer.pop(0)
-
-            fd = sys.stdin.fileno()
-            old_settings = termios.tcgetattr(fd)
-            try:
-                tty.setraw(sys.stdin.fileno())
-                ch = sys.stdin.read(1)
-            finally:
-                termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+            ch = sys.stdin.read(1)
 
             if ch == '\x1b':
                 dr, dw, de = select.select([sys.stdin], [], [], 0)
                 if not dr:
                     return ch
                 
-                try:
-                    tty.setraw(sys.stdin.fileno())
-                    ch2 = sys.stdin.read(1)
-                finally:
-                    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-                
+                ch2 = sys.stdin.read(1)
                 if ch2 == '[':
-                    try:
-                        tty.setraw(sys.stdin.fileno())
-                        ch3 = sys.stdin.read(1)
-                    finally:
-                        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-                    
+                    ch3 = sys.stdin.read(1)
                     if ch3 == 'A':
                         self.buffer.append('H')
                         return '\xe0'
@@ -62,9 +72,12 @@ else:
                         self.buffer.append('K')
                         return '\xe0'
                     else:
-                        return ch
+                        return ch 
                 else:
                     return ch
+
+            if ch == '\n':
+                return '\r'
             
             if ch == '\x7f':
                 return '\x08'
@@ -73,5 +86,8 @@ else:
 
     _unix_input = UnixInput()
 
-    kbhit = _unix_input.kbhit
-    getwch = _unix_input.getwch
+    def kbhit():
+        return _unix_input.kbhit()
+
+    def getwch():
+        return _unix_input.getwch()

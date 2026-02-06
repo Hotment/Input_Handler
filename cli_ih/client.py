@@ -55,8 +55,8 @@ class InputHandler:
         self.commands[name] = {"cmd": func, "description": description, "legacy": legacy}
 
     def register_command(self, name: str, func: Callable[..., Any], description: str = ""):
-        """(DEPRECATED) Registers a command with its associated function."""
-        warnings.warn("Registering commands with `register_command` is deprecated, and should not be used.", DeprecationWarning, 2)
+        """(DEPRECATED) Registers a command with its associated function. This will be deleted in v0.8.0"""
+        warnings.warn("Registering commands with `register_command` is deprecated, and should not be used. This will be deleted in v0.8.0", DeprecationWarning, 2)
         self.__register_cmd(name, func, description, legacy=True)
 
     def command(self, *, name: str = "", description: str = ""):
@@ -128,84 +128,85 @@ class InputHandler:
                         sys.stdout.write(self.cursor)
                         sys.stdout.flush()
                         
-                    while self.is_running:
-                        if input_lib.kbhit():
-                            char = input_lib.getwch()
-                            
-                            if char == '\xe0' or char == '\x00':
-                                try:
-                                    scancode = input_lib.getwch()
-
-                                    if scancode == 'H':
-                                        if self.history_index > 0:
-                                            self.history_index -= 1
-                                            self.input_buffer = self.history[self.history_index]
+                    with input_lib.InputContext():
+                        while self.is_running:
+                            if input_lib.kbhit():
+                                char = input_lib.getwch()
+                                
+                                if char == '\xe0' or char == '\x00':
+                                    try:
+                                        scancode = input_lib.getwch()
+    
+                                        if scancode == 'H':
+                                            if self.history_index > 0:
+                                                self.history_index -= 1
+                                                self.input_buffer = self.history[self.history_index]
+                                                with self.print_lock:
+                                                    sys.stdout.write('\r' + ' ' * (shutil.get_terminal_size().columns - 1) + '\r')
+                                                    sys.stdout.write(self.cursor + self.input_buffer)
+                                                    sys.stdout.flush()
+                                            
+                                        elif scancode == 'P':
+                                            if self.history_index < len(self.history):
+                                                self.history_index += 1
+                                                
+                                            if self.history_index == len(self.history):
+                                                self.input_buffer = ""
+                                            else:
+                                                self.input_buffer = self.history[self.history_index]
+                                                
                                             with self.print_lock:
                                                 sys.stdout.write('\r' + ' ' * (shutil.get_terminal_size().columns - 1) + '\r')
                                                 sys.stdout.write(self.cursor + self.input_buffer)
                                                 sys.stdout.flush()
+                                    except Exception:
+                                        pass
+    
+                                elif char == '\r':
+                                    with self.print_lock:
+                                        sys.stdout.write('\n')
+                                        sys.stdout.flush()
+                                    text = self.input_buffer
+                                    self.input_buffer = ""
+                                    
+                                    if text:
+                                        if not self.history or self.history[-1] != text:
+                                            self.history.append(text)
+                                        self.history_index = len(self.history)
                                         
-                                    elif scancode == 'P':
-                                        if self.history_index < len(self.history):
-                                            self.history_index += 1
-                                            
-                                        if self.history_index == len(self.history):
-                                            self.input_buffer = ""
+                                        self.processing_command = True
+                                        cmdargs = text.split(' ')
+                                        command_name = cmdargs[0].lower()
+                                        args = cmdargs[1:]
+                                        if command_name in self.commands:
+                                            _run_command(self.commands, command_name, args)
                                         else:
-                                            self.input_buffer = self.history[self.history_index]
-                                            
+                                            self.__warning(f"Unknown command: '{command_name}'")
+                                        self.processing_command = False
+                                    
+                                    #break
+                                        
+                                elif char == '\x08':
+                                    if len(self.input_buffer) > 0:
+                                        self.input_buffer = self.input_buffer[:-1]
                                         with self.print_lock:
-                                            sys.stdout.write('\r' + ' ' * (shutil.get_terminal_size().columns - 1) + '\r')
-                                            sys.stdout.write(self.cursor + self.input_buffer)
+                                            sys.stdout.write('\b \b')
                                             sys.stdout.flush()
-                                except Exception:
-                                    pass
-
-                            elif char == '\r':
-                                with self.print_lock:
-                                    sys.stdout.write('\n')
-                                    sys.stdout.flush()
-                                text = self.input_buffer
-                                self.input_buffer = ""
                                 
-                                if text:
-                                    if not self.history or self.history[-1] != text:
-                                        self.history.append(text)
-                                    self.history_index = len(self.history)
-                                    
-                                    self.processing_command = True
-                                    cmdargs = text.split(' ')
-                                    command_name = cmdargs[0].lower()
-                                    args = cmdargs[1:]
-                                    if command_name in self.commands:
-                                        _run_command(self.commands, command_name, args)
-                                    else:
-                                        self.__warning(f"Unknown command: '{command_name}'")
-                                    self.processing_command = False
+                                elif char == '\x03':
+                                    self.__error("Input interrupted.")
+                                    self.is_running = False
+                                    return
                                 
-                                break
-                                    
-                            elif char == '\x08':
-                                if len(self.input_buffer) > 0:
-                                    self.input_buffer = self.input_buffer[:-1]
-                                    with self.print_lock:
-                                        sys.stdout.write('\b \b')
-                                        sys.stdout.flush()
-                            
-                            elif char == '\x03':
-                                self.__error("Input interrupted.")
-                                self.is_running = False
-                                return
-                            
+                                else:
+                                    if char.isprintable():
+                                        self.input_buffer += char
+                                        with self.print_lock:
+                                            sys.stdout.write(char)
+                                            sys.stdout.flush()
                             else:
-                                if char.isprintable():
-                                    self.input_buffer += char
-                                    with self.print_lock:
-                                        sys.stdout.write(char)
-                                        sys.stdout.flush()
-                        else:
-                            import time
-                            time.sleep(0.01)
+                                import time
+                                time.sleep(0.01)
 
                 except HandlerClosed:
                     self.__info("Input Handler exited.")

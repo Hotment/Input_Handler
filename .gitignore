@@ -105,3 +105,4 @@ dmypy.json
 #pdm.lock
 #uv.lock
 .pdm.toml
+Dockerfile
