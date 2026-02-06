@@ -24,21 +24,34 @@ else:
         def __init__(self):
             self.fd = sys.stdin.fileno()
             self.old_settings = None
+            self.using_raw_mode = False
+
 
         def __enter__(self):
-            if not sys.stdin.isatty():
-                return self
+            try:
+                self.old_settings = termios.tcgetattr(self.fd)
+                new_settings = termios.tcgetattr(self.fd)
+                new_settings[3] = new_settings[3] & ~termios.ICANON & ~termios.ECHO & ~termios.ISIG
+                termios.tcsetattr(self.fd, termios.TCSANOW, new_settings)
+                self.using_raw_mode = True
+            except Exception:
+                self.old_settings = None
+                self.using_raw_mode = False
+                sys.stderr.write("[WARN] Terminal input optimization failed (non-TTY detected). Using fallback mode.\n")
+                sys.stderr.flush()
+                try:
+                    sys.stdout.reconfigure(line_buffering=True) # type: ignore
+                except AttributeError:
+                    pass
 
-            self.old_settings = termios.tcgetattr(self.fd)
-            new_settings = termios.tcgetattr(self.fd)
-            new_settings[3] = new_settings[3] & ~termios.ICANON & ~termios.ECHO & ~termios.ISIG
-            termios.tcsetattr(self.fd, termios.TCSANOW, new_settings)
             return self
 
         def __exit__(self, exc_type, exc_value, traceback):
-            if self.old_settings:
-                termios.tcsetattr(self.fd, termios.TCSANOW, self.old_settings)
-
+            if self.old_settings and self.using_raw_mode:
+                try:
+                    termios.tcsetattr(self.fd, termios.TCSANOW, self.old_settings)
+                except Exception:
+                    pass
 
     class UnixInput:
         def __init__(self):
