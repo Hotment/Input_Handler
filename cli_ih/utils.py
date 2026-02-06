@@ -1,6 +1,7 @@
 import shutil
 import sys
 import threading
+import os
 
 _HANDLER = None
 
@@ -77,6 +78,19 @@ def safe_print(msg: object, cursor: str | None = None, input_buffer: str | None 
         _do_safe_print(msg, str(cursor or ""), str(input_buffer or ""))
 
 def _do_safe_print(msg: str, cursor: str, input_buffer: str):
+    is_ptero = os.environ.get('P_SERVER_UUID') or os.environ.get('CLI_IH_FORCE_FALLBACK')
+    handler_in_fallback_mode = False
+    
+    if _HANDLER is not None:
+        raw_mode = getattr(_HANDLER, "using_raw_mode_active", None)
+        if raw_mode is False:
+            handler_in_fallback_mode = True
+
+    if is_ptero or not sys.stdout.isatty() or handler_in_fallback_mode:
+        sys.stdout.write(f"{msg}\n")
+        sys.stdout.flush()
+        return
+
     try:
         columns = shutil.get_terminal_size().columns
     except:

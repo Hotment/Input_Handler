@@ -19,6 +19,7 @@ class AsyncInputHandler:
         self.processing_command = False
         self.history = []
         self.history_index = 0
+        self.using_raw_mode_active = True # Default assumption
         
         if self.register_defaults:
             self.register_default_commands()
@@ -90,6 +91,7 @@ class AsyncInputHandler:
 
             with input_lib.InputContext() as ctx:
                 using_raw_mode = getattr(ctx, 'using_raw_mode', True)
+                self.using_raw_mode_active = using_raw_mode
 
                 if not using_raw_mode:
                     while self.is_running:
