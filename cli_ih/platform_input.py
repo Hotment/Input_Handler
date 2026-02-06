@@ -1,4 +1,5 @@
-import sys
+import sys, os
+
 
 if sys.platform == 'win32':
     import msvcrt
@@ -29,6 +30,9 @@ else:
 
         def __enter__(self):
             try:
+                if os.environ.get('P_SERVER_UUID') or os.environ.get('CLI_IH_FORCE_FALLBACK'):
+                    raise Exception("Forced fallback mode")
+
                 self.old_settings = termios.tcgetattr(self.fd)
                 new_settings = termios.tcgetattr(self.fd)
                 new_settings[3] = new_settings[3] & ~termios.ICANON & ~termios.ECHO & ~termios.ISIG
