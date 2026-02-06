@@ -1,7 +1,8 @@
 from typing import Callable, Any
 from .exceptions import HandlerClosed
 from .utils import safe_print as print, register_handler, SafeLogger
-import logging, sys, threading, warnings, inspect, shutil, msvcrt
+import logging, sys, threading, warnings, inspect, shutil
+from . import platform_input as input_lib
 
 class InputHandler:
     def __init__(self, thread_mode = True, cursor = "", *, logger: logging.Logger | None = None, register_defaults: bool = True):
@@ -128,12 +129,13 @@ class InputHandler:
                         sys.stdout.flush()
                         
                     while self.is_running:
-                        if msvcrt.kbhit():
-                            char = msvcrt.getwch()
+                        if input_lib.kbhit():
+                            char = input_lib.getwch()
                             
                             if char == '\xe0' or char == '\x00':
                                 try:
-                                    scancode = msvcrt.getwch()
+                                    scancode = input_lib.getwch()
+
                                     if scancode == 'H':
                                         if self.history_index > 0:
                                             self.history_index -= 1

@@ -1,7 +1,8 @@
 from typing import Callable, Any
 from .exceptions import HandlerClosed
 from .utils import safe_print as print, register_handler, SafeLogger
-import logging, warnings, asyncio, inspect, threading, sys, shutil, msvcrt
+import logging, warnings, asyncio, inspect, threading, sys, shutil
+from . import platform_input as input_lib
 
 class AsyncInputHandler:
     def __init__(self, cursor = "", thread_mode: bool = True, *, logger: logging.Logger | None = None, register_defaults: bool = True):
@@ -89,12 +90,13 @@ class AsyncInputHandler:
 
             while self.is_running:
                 try:
-                    if msvcrt.kbhit():
-                        char = msvcrt.getwch()
+                    if input_lib.kbhit():
+                        char = input_lib.getwch()
                         
                         if char == '\xe0' or char == '\x00':
                             try:
-                                scancode = msvcrt.getwch()
+                                scancode = input_lib.getwch()
+
                                 if scancode == 'H':
                                     if self.history_index > 0:
                                         self.history_index -= 1
