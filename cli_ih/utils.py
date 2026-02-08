@@ -2,6 +2,7 @@ import shutil
 import sys
 import threading
 import os
+import logging
 
 _HANDLER = None
 
@@ -13,6 +14,7 @@ class SafeLogger:
     """A dummy logger that uses safe_print to output logs to the console."""
     def __init__(self):
         self.handlers = []
+        self.name = "SafeLogger"
 
     def debug(self, msg: str):
         safe_print(f"[DEBUG]: {msg}")
@@ -44,6 +46,46 @@ class SafeLogger:
     def getEffectiveLevel(self):
         return 0
 
+class CLILoggingHandler(logging.Handler):
+    """
+    A logging handler that uses safe_print to output logs to the console,
+    preserving the current input line.
+    """
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            safe_print(msg)
+        except Exception:
+            self.handleError(record)
+
+
+def wrap_logger_handlers(logger: logging.Logger):
+    """
+    Automatically replaces StreamHandlers in the logger with CLILoggingHandler
+    to ensure safe printing in the CLI environment.
+    """
+    if not logger:
+        return
+
+    for h in list(logger.handlers):
+        if isinstance(h, logging.StreamHandler) and not isinstance(h, CLILoggingHandler):
+            if h.stream in (sys.stdout, sys.stderr):
+                new_h = CLILoggingHandler()
+                new_h.setLevel(h.level)
+                new_h.setFormatter(h.formatter)
+                
+                logger.removeHandler(h)
+                logger.addHandler(new_h)
+
+def install_global_patch():
+    """
+    Patches the root logger and all existing loggers to use CLILoggingHandler.
+    """
+    wrap_logger_handlers(logging.getLogger())
+
+    for logger in logging.Logger.manager.loggerDict.values():
+        if isinstance(logger, logging.Logger):
+            wrap_logger_handlers(logger)
 
 def safe_print(msg: object, cursor: str | None = None, input_buffer: str | None = None):
     """

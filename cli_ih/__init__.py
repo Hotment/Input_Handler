@@ -1,6 +1,6 @@
 from .client import InputHandler
 from .asyncClient import AsyncInputHandler
-from .utils import safe_print
+from .utils import safe_print, CLILoggingHandler
 import importlib.metadata
 
 try:

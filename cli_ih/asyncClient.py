@@ -1,6 +1,6 @@
 from typing import Callable, Any
 from .exceptions import HandlerClosed
-from .utils import safe_print as print, register_handler, SafeLogger
+from .utils import safe_print as print, register_handler, SafeLogger, wrap_logger_handlers, install_global_patch
 import logging, warnings, asyncio, inspect, threading, sys, shutil
 from . import platform_input as input_lib
 
@@ -11,15 +11,30 @@ class AsyncInputHandler:
         self.is_running = False
         self.thread_mode = thread_mode
         self.cursor = f"{cursor.strip()} " if cursor else ""
+        if logger:
+            wrap_logger_handlers(logger)
+
+        install_global_patch()
+
+        if logger is None:
+            if len(logging.getLogger().handlers) > 0:
+                logger = logging.getLogger()
+            else:
+                for log_name, log_obj in logging.Logger.manager.loggerDict.items():
+                    if isinstance(log_obj, logging.Logger) and len(log_obj.handlers) > 0:
+                        logger = log_obj
+                        break
+
         self.global_logger = logger if logger else SafeLogger()
-        self.logger = logger.getChild("InputHandler") if logger else self.global_logger
+        self.logger = self.global_logger.getChild("InputHandler")
+
         self.register_defaults = register_defaults
         self.print_lock = threading.Lock()
         self.input_buffer = ""
         self.processing_command = False
         self.history = []
         self.history_index = 0
-        self.using_raw_mode_active = True # Default assumption
+        self.using_raw_mode_active = True
         
         if self.register_defaults:
             self.register_default_commands()
