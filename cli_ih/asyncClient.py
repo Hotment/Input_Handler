@@ -101,8 +101,9 @@ class AsyncInputHandler:
 
         def _input_worker():
             with self.print_lock:
-                sys.stdout.write(self.cursor)
-                sys.stdout.flush()
+                if sys.stdout.isatty():
+                    sys.stdout.write(self.cursor)
+                    sys.stdout.flush()
 
             with input_lib.InputContext() as ctx:
                 using_raw_mode = getattr(ctx, 'using_raw_mode', True)
@@ -280,9 +281,10 @@ class AsyncInputHandler:
                 self.processing_command = False
                 
                 with self.print_lock:
-                    sys.stdout.write(self.cursor)
-                    sys.stdout.flush()
-                
+                    if sys.stdout.isatty():
+                        sys.stdout.write(self.cursor)
+                        sys.stdout.flush()
+
             except EOFError:
                 self.__error("Input ended unexpectedly.")
                 break

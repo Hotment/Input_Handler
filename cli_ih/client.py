@@ -141,9 +141,10 @@ class InputHandler:
             while self.is_running:
                 try:
                     with self.print_lock:
-                        sys.stdout.write(self.cursor)
-                        sys.stdout.flush()
-                        
+                        if sys.stdout.isatty():
+                            sys.stdout.write(self.cursor)
+                            sys.stdout.flush()
+
                     with input_lib.InputContext() as ctx:
                         using_raw_mode = getattr(ctx, 'using_raw_mode', True)
                         self.using_raw_mode_active = using_raw_mode
@@ -171,9 +172,10 @@ class InputHandler:
                                             self.processing_command = False
                                             
                                             with self.print_lock:
-                                                sys.stdout.write(self.cursor)
-                                                sys.stdout.flush()
-                                                
+                                                if sys.stdout.isatty():
+                                                    sys.stdout.write(self.cursor)
+                                                    sys.stdout.flush()
+
                                     except HandlerClosed:
                                         raise
                                     except Exception:
